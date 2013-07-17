@@ -471,9 +471,12 @@ class nsqphp
                     // expired message
                     if ($this->logger) {
                         $this->logger->info(sprintf(
-                            'Expired message [%s] "%s": %s',
+                            'Expired message [%s] "%s": (%s)%s:%s: %s',
                             (string)$connection,
                             $msg->getId(),
+                            get_class($e),
+                            $e->getFile(),
+                            $e->getLine(),
                             $e->getMessage()
                         ));
                     }
@@ -484,7 +487,15 @@ class nsqphp
                     }
                     
                     if ($this->logger) {
-                        $this->logger->warn(sprintf('Error processing [%s] "%s": %s', (string)$connection, $msg->getId(), $e->getMessage()));
+                        $this->logger->warn(sprintf(
+                            'Error processing [%s] "%s": (%s)%s:%s: %s',
+                            (string)$connection,
+                            $msg->getId(),
+                            get_class($e),
+                            $e->getFile(),
+                            $e->getLine(),
+                            $e->getMessage()
+                        ));
                     }
 
                     $requeue = false;
