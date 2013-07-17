@@ -85,7 +85,14 @@ class nsqphp
      * @var Connection\ConnectionPool|NULL
      */
     private $pubConnectionPool;
-    
+
+    /**
+     * Time after which the publishing connections will be recycled
+     *
+     * @var int|NULL
+     */
+    private $pubConnectionsRecycling;
+
     /**
      * Publish success criteria (how many nodes need to respond)
      * 
@@ -146,7 +153,8 @@ class nsqphp
             LoggerInterface $logger = NULL,
             $connectionTimeout = 3,
             $readWriteTimeout = 3,
-            $readWaitTimeout = 15
+            $readWaitTimeout = 15,
+            $pubConnectionsRecycling = 25
             )
     {
         $this->nsLookup = $nsLookup;
@@ -160,6 +168,7 @@ class nsqphp
         $this->pubSuccessCount = 1;
         
         $this->subConnectionPool = new Connection\ConnectionPool;
+        $this->pubConnectionsRecycling = $pubConnectionsRecycling;
         
         $this->loop = ELFactory::create();
         
@@ -246,7 +255,8 @@ class nsqphp
                         $this->readWriteTimeout,
                         $this->readWaitTimeout,
                         FALSE,      // blocking
-                        array($this, 'connectionCallback')
+                        array($this, 'connectionCallback'),
+                        $this->pubConnectionsRecycling
                         );
                 $cm->add($conn);
             }

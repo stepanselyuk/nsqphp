@@ -83,6 +83,20 @@ class Connection implements ConnectionInterface
      * @var Resource|NULL
      */
     private $socket = NULL;
+
+    /**
+     * Timestamp of the last connection
+     *
+     * @var int
+     */
+    private $lastConnectionTime;
+
+    /**
+     * Time after which the connection will be recycled
+     *
+     * @var int
+     */
+    private $connectionRecycling;
     
     /**
      * Constructor
@@ -98,6 +112,8 @@ class Connection implements ConnectionInterface
      * @param boolean $nonBlocking Put socket in non-blocking mode
      * @param callable|NULL $connectCallback Optional on-connect callback (will
      *      be called whenever we establish a connection)
+     * @param int|NULL $connectionRecycling In seconds, time after which the
+     *      connection will be recycled
      */
     public function __construct(
             $hostname = 'localhost',
@@ -106,7 +122,8 @@ class Connection implements ConnectionInterface
             $readWriteTimeout = 3,
             $readWaitTimeout = 15,
             $nonBlocking = FALSE,
-            $connectCallback = NULL
+            $connectCallback = NULL,
+            $connectionRecycling = NULL
             ) {
         $this->hostname = $hostname;
         $this->port = $port ? $port : 4150;
@@ -117,6 +134,7 @@ class Connection implements ConnectionInterface
         $this->readWaitTimeoutUsec = ($readWaitTimeout - $this->readWaitTimeoutSec) * 1000000;
         $this->nonBlocking = (bool)$nonBlocking;
         $this->connectCallback = $connectCallback;
+        $this->connectionRecycling = $connectionRecycling;
     }
     
     /**
@@ -214,6 +232,12 @@ class Connection implements ConnectionInterface
      */
     public function getSocket()
     {
+        if ($this->connectionRecycling &&
+            $this->socket &&
+            time() - $this->lastConnectionTime >= $this->connectionRecycling) {
+            fclose($this->socket);
+            $this->socket = NULL;
+        }
         if ($this->socket === NULL) {
             $this->socket = fsockopen($this->hostname, $this->port, $errNo, $errStr, $this->connectionTimeout);
             if ($this->socket === FALSE) {
@@ -221,6 +245,7 @@ class Connection implements ConnectionInterface
                         "Could not connect to {$this->hostname}:{$this->port} ({$errStr} [{$errNo}])"
                         );
             }
+            $this->lastConnectionTime = time();
             if ($this->nonBlocking) {
                 stream_set_blocking($this->socket, 0);
             }
