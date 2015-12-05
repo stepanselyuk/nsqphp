@@ -515,8 +515,8 @@ class nsqphp
                     if ($this->dedupe !== NULL) {
                         $this->dedupe->erase($topic, $channel, $msg);
                     }
-                    
-                    if ($this->logger) {
+
+                    if ($this->logger && !($e instanceof Exception\RequeueMessageException)) {
                         $this->logger->warn(sprintf(
                             'Error processing [%s] "%s": (%s)%s:%s: %s',
                             (string)$connection,
