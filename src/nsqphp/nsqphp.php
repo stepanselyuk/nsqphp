@@ -246,9 +246,10 @@ class nsqphp
             }
             
             $parts = explode(':', $h);
-            $conn = $cm->find($h);
-            if (!$conn) {
-                $conn = new Connection\Connection(
+            try {
+                $conn = $cm->find($h);
+                if (!$conn) {
+                    $conn = new Connection\Connection(
                         $parts[0],
                         isset($parts[1]) ? $parts[1] : NULL,
                         $this->connectionTimeout,
@@ -257,10 +258,15 @@ class nsqphp
                         FALSE,      // blocking
                         array($this, 'connectionCallback'),
                         $this->pubConnectionsRecycling
-                        );
-                $cm->add($conn);
+                    );
+                    $cm->add($conn);
+                }
+                $this->pubConnectionPool->add($conn);
+            } catch (Exception\ConnectionException $e) {
+                if ($this->logger) {
+                    $this->logger->warn(sprintf('Cannot connect to nsqd host [%s]', $h));
+                }
             }
-            $this->pubConnectionPool->add($conn);
         }
         
         // work out success count
