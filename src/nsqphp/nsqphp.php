@@ -239,36 +239,45 @@ class nsqphp
         if (!is_array($hosts)) {
             $hosts = explode(',', $hosts);
         }
+
         $cm = Connection\ConnectionManager::getInstance();
+
         foreach ($hosts as $h) {
+
             if (strpos($h, ':') === FALSE) {
                 $h .= ':4150';
             }
-            
+
             $parts = explode(':', $h);
-            try {
-                $conn = $cm->find($h);
-                if (!$conn) {
-                    $conn = new Connection\Connection(
-                        $parts[0],
-                        isset($parts[1]) ? $parts[1] : NULL,
-                        $this->connectionTimeout,
-                        $this->readWriteTimeout,
-                        $this->readWaitTimeout,
-                        FALSE,      // blocking
-                        array($this, 'connectionCallback'),
-                        $this->pubConnectionsRecycling
-                    );
+            $conn = $cm->find($h);
+
+            if (!$conn) {
+
+                $conn = new Connection\Connection(
+                    $parts[0],
+                    isset($parts[1]) ? $parts[1] : NULL,
+                    $this->connectionTimeout,
+                    $this->readWriteTimeout,
+                    $this->readWaitTimeout,
+                    FALSE,      // blocking
+                    [$this, 'connectionCallback'],
+                    $this->pubConnectionsRecycling
+                );
+
+                try {
+                    // try to connect before adding to pool
+                    $conn->getSocket();
                     $cm->add($conn);
-                }
-                $this->pubConnectionPool->add($conn);
-            } catch (Exception\ConnectionException $e) {
-                if ($this->logger) {
-                    $this->logger->warn(sprintf('Cannot connect to nsqd host [%s]', $h));
+                } catch (Exception\ConnectionException $e) {
+                    if ($this->logger) {
+                        $this->logger->warn(sprintf('Cannot connect to nsqd host [%s]. Error: %s', $h, $e->getMessage() ));
+                    }
+                    continue;
                 }
             }
+            $this->pubConnectionPool->add($conn);
         }
-        
+
         // work out success count
         if ($cl === NULL) {
             $cl = self::PUB_ONE;
@@ -336,8 +345,13 @@ class nsqphp
         
         if ($success < $this->pubSuccessCount) {
             throw new Exception\PublishException(
-                    sprintf('Failed to publish message; required %s for success, achieved %s. Errors were: %s', $this->pubSuccessCount, $success, implode(', ', $errors))
-                    );
+                sprintf(
+                    'Failed to publish message; required %s for success, achieved %s. Total available nsdq in the pool: %s. Errors were: %s',
+                    $this->pubSuccessCount,
+                    $success, count($this->pubConnectionPool),
+                    implode(', ', $errors)
+                )
+            );
         }
         
         return $this;
