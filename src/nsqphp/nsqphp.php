@@ -357,6 +357,78 @@ class nsqphp
         return $this;
     }
 
+    /**
+     * Publish message
+     *
+     * @param string $topic A valid topic name: [.a-zA-Z0-9_-] and 1 < length < 32
+     * @param MessageInterface[] $msgs
+     *
+     * @throws Exception\PublishException If we don't get "OK" back from server
+     *      (for the specified number of hosts - as directed by `publishTo`)
+     *
+     * @return nsqphp This instance for call chaining
+     */
+    public function mpublish($topic, array $msgs)
+    {
+        // pick a random
+        $this->pubConnectionPool->shuffle();
+
+        foreach ($msgs as $index => $msg) {
+            if (!($msg instanceof MessageInterface)) {
+                throw new Exception\PublishException(
+                    sprintf(
+                        'Message at index %d is not conform MessageInterface.',
+                        $index
+                    )
+                );
+            }
+        }
+
+        $success = 0;
+        $errors = array();
+        foreach ($this->pubConnectionPool as $conn) {
+            /** @var $conn ConnectionInterface */
+            try {
+                $this->tryFunc(function (ConnectionInterface $conn) use ($topic, $msgs, &$success, &$errors) {
+
+                    $payloads = array_map(function (MessageInterface $msg) {
+                        return $msg->getPayload();
+                    }, $msgs);
+
+                    $conn->write($this->writer->mpublish($topic, $payloads));
+                    $frame = $this->reader->readFrame($conn);
+                    while ($this->reader->frameIsHeartbeat($frame)) {
+                        $conn->write($this->writer->nop());
+                        $frame = $this->reader->readFrame($conn);
+                    }
+                    if ($this->reader->frameIsResponse($frame, 'OK')) {
+                        $success++;
+                    } else {
+                        $errors[] = $frame['error'];
+                    }
+                }, $conn, 2);
+            } catch (\Exception $e) {
+                $errors[] = $e->getMessage();
+            }
+            if ($success >= $this->pubSuccessCount) {
+                break;
+            }
+        }
+
+        if ($success < $this->pubSuccessCount) {
+            throw new Exception\PublishException(
+                sprintf(
+                    'Failed to publish message; required %s for success, achieved %s. Total available nsdq in the pool: %s. Errors were: %s',
+                    $this->pubSuccessCount,
+                    $success, count($this->pubConnectionPool),
+                    implode(', ', $errors)
+                )
+            );
+        }
+
+        return $this;
+    }
+
     public function tryFunc(Callable $func, ConnectionInterface $conn, $tries = 1)
     {
         $lastException = NULL;

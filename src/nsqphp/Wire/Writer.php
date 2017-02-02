@@ -55,6 +55,40 @@ class Writer
         // $size = pack('N', strlen($data));
         // return $cmd . $size . $data;
     }
+
+    /**
+     * Publish [MPUB]
+     *
+     * @param string $topic
+     * @param array $msgs
+     *
+     * @return string
+     */
+    public function mpublish($topic, array $msgs)
+    {
+        // the fast pack way, but may be unsafe
+        $cmd = $this->command('MPUB', $topic);
+
+        $bodySize = pack('N', array_sum(array_map(function ($msg) {
+            return strlen($msg);
+        }, $msgs)));
+
+        $msgsCount=pack('N', count($msgs));
+
+        $result = $cmd . $bodySize . $msgsCount;
+
+        foreach ($msgs as $msg) {
+            $result .= pack('N', strlen($msg)).$msg;
+        }
+
+        return $result;
+
+        // the safe way, but is time cost
+        // $cmd = $this->command('PUB', $topic);
+        // $data = $this->packString($message);
+        // $size = pack('N', strlen($data));
+        // return $cmd . $size . $data;
+    }
     
     /**
      * Ready [RDY]
