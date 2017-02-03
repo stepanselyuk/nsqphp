@@ -8,7 +8,7 @@ use nsqphp\Exception\SocketException;
 /**
  * Represents a pool of connections to one or more NSQD servers
  */
-class ConnectionPool implements \Iterator, \Countable
+class ConnectionPool implements \Iterator, \Countable, \ArrayAccess
 {
     /**
      * Connections
@@ -62,9 +62,7 @@ class ConnectionPool implements \Iterator, \Countable
     }
     
     /**
-     * Get key of current item as string
-     *
-     * @return string
+     * @inheritdoc
      */
     public function key()
     {
@@ -72,9 +70,7 @@ class ConnectionPool implements \Iterator, \Countable
     }
 
     /**
-     * Test if current item valid
-     *
-     * @return boolean
+     * @inheritdoc
      */
     public function valid()
     {
@@ -82,9 +78,7 @@ class ConnectionPool implements \Iterator, \Countable
     }
 
     /**
-     * Fetch current value
-     *
-     * @return mixed
+     * @inheritdoc
      */
     public function current()
     {
@@ -92,7 +86,7 @@ class ConnectionPool implements \Iterator, \Countable
     }
 
     /**
-     * Go to next item
+     * @inheritdoc
      */
     public function next()
     {
@@ -100,7 +94,7 @@ class ConnectionPool implements \Iterator, \Countable
     }
 
     /**
-     * Rewind to start
+     * @inheritdoc
      */
     public function rewind()
     {
@@ -116,9 +110,7 @@ class ConnectionPool implements \Iterator, \Countable
     }
 
     /**
-     * Get count of items
-     *
-     * @return integer
+     * @inheritdoc
      */
     public function count()
     {
@@ -131,5 +123,41 @@ class ConnectionPool implements \Iterator, \Countable
     public function shuffle()
     {
         shuffle($this->connections);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function offsetSet($offset, $value)
+    {
+        if (null === $offset) {
+            $this->connections[] = $value;
+        } else {
+            $this->connections[$offset] = $value;
+        }
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function offsetExists($offset)
+    {
+        return isset($this->connections[$offset]);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function offsetUnset($offset)
+    {
+        unset($this->connections[$offset]);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function offsetGet($offset)
+    {
+        return isset($this->connections[$offset]) ? $this->connections[$offset] : null;
     }
 }
